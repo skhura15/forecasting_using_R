@@ -1,0 +1,257 @@
+
+```{r}
+library(readr)
+temperature_ts <- ts(cet_temp$avg_annual_temp_C, start=1900, frequency=1)
+```
+
+```{r}
+#Function to produce P-values for the Ljung-Box test for different lags
+#where an ARMA(p,q) model has been fitted.
+#Note that k must be > p+q (See Lecture 9 slides)
+#Number of degrees of freedom for the test = k-p-q
+
+#Arguments for the function "LB_test"
+#resid = residuals from a fitted ARMA(p,q) model.
+
+#max.k = the maximum value of k at which we perform the test
+#Note that the minimum k is set at p+q+1 (corresponding to a test with one degree
+#of freedom)
+
+#p = Order of the AR part of the model
+#q = Order of the MA part of the model 
+
+#The function returns a table with one column showing the number of degrees 
+#of freedom for the test and the other the associated P-value.
+
+LB_test<-function(resid,max.k,p,q){
+ lb_result<-list()
+ df<-list()
+ p_value<-list()
+  for(i in (p+q+1):max.k){
+   lb_result[[i]]<-Box.test(resid,lag=i,type=c("Ljung-Box"),fitdf=(p+q))
+   df[[i]]<-lb_result[[i]]$parameter
+   p_value[[i]]<-lb_result[[i]]$p.value
+  }
+ df<-as.vector(unlist(df))
+ p_value<-as.vector(unlist(p_value))
+ test_output<-data.frame(df,p_value)
+ names(test_output)<-c("deg_freedom","LB_p_value")
+ return(test_output)
+}
+```
+
+
+```{r pressure, echo=FALSE}
+# We start by plotting the time series
+plot(temperature_ts, main="Annual Mean Temperature (1900-2021)", xlab="Year", ylab="Temperature (°C)")
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+# ACF plot
+acf(temperature_ts)
+```
+
+```{r}
+# PACF Plot
+pacf(temperature_ts)
+```
+```{r}
+#Differenced Series
+#The time series does appear to be weakly stationary after differencing
+temperature_ts_diff<-diff(temperature_ts)
+ts.plot(temperature_ts_diff,xlab='Year',ylab='Temperature ')
+```
+
+
+```{r}
+# This suggests we might need an MA component
+acf(temperature_ts_diff)
+```
+
+
+```{r}
+# We also might look for an AR component
+pacf(temperature_ts_diff)
+```
+# Model parameters tuning
+
+```{r}
+# Since the PACF shows a significant spike at lag 1, we can start by fitting an AR(1) model to the differenced series.
+model <- arima(temperature_ts, order = c(1, 1, 0))
+model
+resid.AR1<-residuals(model)
+# Time plot for the residuals
+ts.plot(resid.AR1, xlab='Time', ylab='Residuals', main='Time Plot of ARIMA(1,1,0) Model Residuals')
+
+# Sample ACF plot for the residuals
+acf(resid.AR1, main='ACF of ARIMA(1,1,0) Model Residuals')
+AR1.LB<-LB_test(resid.AR1,max.k=11,p=1,q=0)
+#To see the table of P-values
+AR1.LB
+#To produce a plot of the P-values against the degrees of freedom and
+#add a blue dashed line at 0.05
+plot(AR1.LB$deg_freedom,AR1.LB$LB_p_value,xlab="Degrees of freedom",ylab="P-value",main="Ljung-Box test P-values",ylim=c(0,1))
+abline(h=0.05,col="blue",lty=2)
+```
+```{r}
+# arima(0,1,1)
+# lets just take an ma component
+model_111 <- arima(temperature_ts, order = c(0, 1, 1))
+resid.AR111 <- residuals(model_111)
+model_111
+# plot the residuals and their ACF to check for white noise.
+ts.plot(resid.AR111, xlab='Time', ylab='Residuals', main='Time Plot of ARIMA(0,1,1) Model Residuals')
+acf(resid.AR111, main='ACF of ARIMA(0,1,1) Model Residuals')
+
+AR111.LB<-LB_test(resid.AR111,max.k=11,p=0,q=1)
+#To see the table of P-values
+AR111.LB
+#To produce a plot of the P-values against the degrees of freedom and
+#add a blue dashed line at 0.05
+plot(AR111.LB$deg_freedom, AR111.LB$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05,col="blue",lty=2)
+```
+```{r}
+# arima(2,1,1)
+
+model_111 <- arima(temperature_ts, order = c(0, 1, 2))
+resid.AR111 <- residuals(model_111)
+model_111
+# plot the residuals and their ACF to check for white noise.
+ts.plot(resid.AR111, xlab='Time', ylab='Residuals', main='Time Plot of ARIMA(0,1,2) Model Residuals')
+acf(resid.AR111, main='ACF of ARIMA(0,1,2) Model Residuals')
+
+AR111.LB<-LB_test(resid.AR111,max.k=11,p=0,q=2)
+#To see the table of P-values
+AR111.LB
+
+#To produce a plot of the P-values against the degrees of freedom and
+#add a blue dashed line at 0.05
+plot(AR111.LB$deg_freedom, AR111.LB$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values (0,1,2)", ylim=c(0,1))
+abline(h=0.05,col="blue",lty=2)
+```
+
+
+```{r}
+# arima(1,1,1)
+
+model_111 <- arima(temperature_ts, order = c(1, 1, 1))
+resid.AR111 <- residuals(model_111)
+model_111
+# plot the residuals and their ACF to check for white noise.
+ts.plot(resid.AR111, xlab='Time', ylab='Residuals', main='Time Plot of ARIMA(1,1,1) Model Residuals')
+acf(resid.AR111, main='ACF of ARIMA(1,1,1) Model Residuals')
+
+AR111.LB<-LB_test(resid.AR111,max.k=11,p=1,q=1)
+#To see the table of P-values
+AR111.LB
+
+#To produce a plot of the P-values against the degrees of freedom and
+#add a blue dashed line at 0.05
+plot(AR111.LB$deg_freedom, AR111.LB$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05,col="blue",lty=2)
+```
+```{r}
+# arima(1,1,2)
+
+model_111 <- arima(temperature_ts, order = c(1, 1, 2))
+resid.AR111 <- residuals(model_111)
+model_111
+# plot the residuals and their ACF to check for white noise.
+ts.plot(resid.AR111, xlab='Time', ylab='Residuals', main='Time Plot of ARIMA(1,1,2) Model Residuals')
+acf(resid.AR111, main='ACF of ARIMA(1,1,2) Model Residuals')
+
+AR111.LB<-LB_test(resid.AR111,max.k=11,p=1,q=2)
+#To see the table of P-values
+AR111.LB
+
+#To produce a plot of the P-values against the degrees of freedom and
+#add a blue dashed line at 0.05
+plot(AR111.LB$deg_freedom, AR111.LB$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values (1,1,2)", ylim=c(0,1))
+abline(h=0.05,col="blue",lty=2)
+```
+```{r}
+# arima(1,1,1)
+
+model_111 <- arima(temperature_ts, order = c(2, 1, 0))
+resid.AR111 <- residuals(model_111)
+model_111
+# plot the residuals and their ACF to check for white noise.
+ts.plot(resid.AR111, xlab='Time', ylab='Residuals', main='Time Plot of ARIMA(2,1,0) Model Residuals')
+acf(resid.AR111, main='ACF of ARIMA(2,1,0) Model Residuals')
+
+AR111.LB<-LB_test(resid.AR111,max.k=11,p=2,q=0)
+#To see the table of P-values
+AR111.LB
+
+#To produce a plot of the P-values against the degrees of freedom and
+#add a blue dashed line at 0.05
+plot(AR111.LB$deg_freedom, AR111.LB$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05,col="blue",lty=2)
+```
+```{r}
+# arima(2,1,1)
+model_111 <- arima(temperature_ts, order = c(2, 1, 1))
+resid.AR111 <- residuals(model_111)
+model_111
+# plot the residuals and their ACF to check for white noise.
+ts.plot(resid.AR111, xlab='Time', ylab='Residuals', main='Time Plot of ARIMA(2,1,1) Model Residuals')
+acf(resid.AR111, main='ACF of ARIMA(1,1,1) Model Residuals')
+
+AR111.LB<-LB_test(resid.AR111,max.k=11,p=2,q=1)
+#To see the table of P-values
+AR111.LB
+#To produce a plot of the P-values against the degrees of freedom and
+#add a blue dashed line at 0.05
+plot(AR111.LB$deg_freedom, AR111.LB$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05,col="blue",lty=2)
+```
+
+
+```{r}
+# arima 1,1,1
+model_111 <- arima(temperature_ts, order = c(2, 1, 2))
+resid.AR111 <- residuals(model_111)
+model_111
+#  plot the residuals and their ACF to check for white noise
+ts.plot(resid.AR111, xlab='Time', ylab='Residuals', main='Time Plot of ARIMA(2,1,2) Model Residuals')
+acf(resid.AR111, main='ACF of ARIMA(2,1,2) Model Residuals')
+
+AR111.LB<-LB_test(resid.AR111,max.k=11,p=2,q=2)
+
+#To see the table of P-values
+AR111.LB
+#To produce a plot of the P-values against the degrees of freedom and
+#add a blue dashed line at 0.05
+plot(AR111.LB$deg_freedom, AR111.LB$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05,col="blue",lty=2)
+```
+#Final Model
+
+
+```{r}
+# We've tried a few combinations and the best seems to be an Arima (0,1,1)
+# It has the lowest AIC of 226
+
+model_011 <- arima(temperature_ts, order = c(0, 1, 1))
+resid.MA011 <- residuals(model_011)
+model_011
+# plot the residuals and their ACF to check for white noise.
+ts.plot(resid.MA011, xlab='Time', ylab='Residuals', main='Time Plot of ARIMA(0,1,1) Model Residuals')
+acf(resid.MA011, main='ACF of ARIMA(0,1,1) Model Residuals')
+
+#Ljung Box Test
+MA011.LB<-LB_test(resid.MA011,max.k=11,p=0,q=1)
+
+#To see the table of P-values
+MA011.LB
+
+#To produce a plot of the P-values against the degrees of freedom and
+#add a blue dashed line at 0.05
+plot(MA011.LB$deg_freedom, MA011.LB$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05,col="blue",lty=2)
+
+```
+
+

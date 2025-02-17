@@ -1,0 +1,380 @@
+```{r}
+library(readr)
+em_ts <- ts(em_house_prices$average_price_gbp, start=2010, frequency=12)
+```
+
+
+```{r}
+plot(em_ts, main="Monthly Average House Prices", xlab="year", ylab="average_price_gbp")
+```
+```{r}
+acf(em_ts)
+```
+```{r}
+pacf(em_ts)
+```
+
+```{r}
+# Checking for Seasonality 
+price_ts_components <- stl(em_ts, s.window="periodic")
+
+# Plotting the seasonal component
+plot(price_ts_components$time.series[, "seasonal"], main="Seasonal Component of House Prices")
+```
+```{r}
+
+# Apply seasonal differencing
+diffseas_price_ts <- diff(em_ts, lag = frequency(em_ts), differences = 1)
+
+# Plot the seasonally diff series
+plot(diffseas_price_ts, main="Differenced Series",
+     xlab="Time", ylab="Differenced Average Price GBP")
+acf(diffseas_price_ts, lag.max=20, main="ACF of Seasonally Differenced Series")
+pacf(diffseas_price_ts, lag.max=20, main="PACF of Seasonally Differenced Series")
+```
+```{r}
+# Regular differencing on the seasonally differenced data
+df <- diff(diffseas_price_ts, differences=1)
+
+# Plot the seasonally and regularly differenced series
+plot(df, main="Differenced Series",
+     xlab="Time", ylab="Differenced Average Price GBP")
+acf(df, lag.max=20, main="ACF of Seasonally Differenced Series")
+pacf(df, lag.max=20, main="PACF of Seasonally Differenced Series")
+```
+```{r}
+#Function to produce P-values for the Ljung-Box test for different lags
+#where an ARIMA(p,d,q)x(P,D,Q)_h model has been fitted.
+#Note that k must be > p+q+P+Q 
+#Number of degrees of freedom for the test = k-p-q-P-Q
+
+#Arguments for the function "LB_test"
+#resid = residuals from a fitted ARIMA(p,d,q)x(P,D,Q)_h model
+
+#max.k = the maximum value of k at which we perform the test
+#Note that the minimum k is set at p+q+P+Q+1 (corresponding to a test with one degree
+#of freedom)
+
+#p = Order of the non-seasonal AR part of the model
+#q = Order of the non-seasonal MA part of the model
+#P = Order of the seasonal AR part of the model
+#Q = Order of the seasonal MA part of the model 
+
+#The function returns a table with one column showing the number of degrees 
+#of freedom for the test and the other the associated P-value.
+
+LB_test_SARIMA<-function(resid,max.k,p,q,P,Q){
+ lb_result<-list()
+ df<-list()
+ p_value<-list()
+  for(i in (p+q+P+Q+1):max.k){
+   lb_result[[i]]<-Box.test(resid,lag=i,type=c("Ljung-Box"),fitdf=(p+q+P+Q))
+   df[[i]]<-lb_result[[i]]$parameter
+   p_value[[i]]<-lb_result[[i]]$p.value
+  }
+ df<-as.vector(unlist(df))
+ p_value<-as.vector(unlist(p_value))
+ test_output<-data.frame(df,p_value)
+ names(test_output)<-c("deg_freedom","LB_p_value")
+ return(test_output)
+ }
+```
+
+
+```{r}
+library(forecast)
+
+
+# Fit a SARIMA model using base R
+sarima_model <- arima(em_ts, order=c(1,1,0), seasonal=list(order=c(0,1,1), period=12))
+residuals_sarima_model <- residuals(sarima_model)
+
+# Perform the Ljung-Box test on the residuals
+sarima_LB_results <- LB_test(residuals_sarima_model, max.k=11, p=1, q=0,P=0,Q=1)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(sarima_LB_results$deg_freedom, sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+
+```
+```{r}
+
+# Fit a SARIMA model using base R
+sarima_model <- arima(em_ts, order=c(0,1,1), seasonal=list(order=c(1,1,0), period=12))
+residuals_sarima_model <- residuals(sarima_model)
+
+# Perform the Ljung-Box test on the residuals
+sarima_LB_results <- LB_test(residuals_sarima_model, max.k=11, p=0, q=1,P=1,Q=0)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(sarima_LB_results$deg_freedom, sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+```
+```{r}
+# Fit a SARIMA model using base R
+sarima_model <- arima(em_ts, order=c(0,1,1), seasonal=list(order=c(0,1,1), period=12))
+residuals_sarima_model <- residuals(sarima_model)
+
+# Perform the Ljung-Box test on the residuals
+sarima_LB_results <- LB_test(residuals_sarima_model, max.k=11, p=0, q=1,P=0,Q=1)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(sarima_LB_results$deg_freedom, sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+```
+
+```{r}
+# Fit a SARIMA model using base R
+sarima_model <- arima(em_ts, order=c(1,1,0), seasonal=list(order=c(1,1,0), period=12))
+residuals_sarima_model <- residuals(sarima_model)
+
+# Perform the Ljung-Box test on the residuals
+sarima_LB_results <- LB_test(residuals_sarima_model, max.k=11, p=1, q=0,P=1,Q=0)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(sarima_LB_results$deg_freedom, sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+```
+
+```{r}
+# Fit a SARIMA model using base R
+sarima_model <- arima(em_ts, order=c(1,1,1), seasonal=list(order=c(0,1,1), period=12))
+residuals_sarima_model <- residuals(sarima_model)
+
+# Perform the Ljung-Box test on the residuals
+sarima_LB_results <- LB_test(residuals_sarima_model, max.k=11, p=1, q=1,P=0,Q=1)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(sarima_LB_results$deg_freedom, sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+```
+```{r}
+# Fit a SARIMA model using base R
+sarima_model <- arima(em_ts, order=c(0,1,0), seasonal=list(order=c(1,1,1), period=12))
+residuals_sarima_model <- residuals(sarima_model)
+
+# Perform the Ljung-Box test on the residuals
+sarima_LB_results <- LB_test(residuals_sarima_model, max.k=11, p=0, q=0,P=1,Q=1)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(sarima_LB_results$deg_freedom, sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+```
+
+```{r}
+# Fit a SARIMA model using base R
+sarima_model <- arima(em_ts, order=c(0,1,1), seasonal=list(order=c(1,1,1), period=12))
+residuals_sarima_model <- residuals(sarima_model)
+
+# Perform the Ljung-Box test on the residuals
+sarima_LB_results <- LB_test(residuals_sarima_model, max.k=11, p=0, q=1,P=1,Q=1)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(sarima_LB_results$deg_freedom, sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+```
+```{r}
+# Fit a SARIMA model using base R
+sarima_model <- arima(em_ts, order=c(1,1,0), seasonal=list(order=c(0,1,0), period=12))
+residuals_sarima_model <- residuals(sarima_model)
+
+# Perform the Ljung-Box test on the residuals
+sarima_LB_results <- LB_test(residuals_sarima_model, max.k=11, p=1, q=0,P=0,Q=0)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(sarima_LB_results$deg_freedom, sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+```
+
+```{r}
+# Fit a SARIMA model using base R
+sarima_model <- arima(em_ts, order=c(0,1,0), seasonal=list(order=c(0,1,0), period=12))
+residuals_sarima_model <- residuals(sarima_model)
+
+# Perform the Ljung-Box test on the residuals
+sarima_LB_results <- LB_test(residuals_sarima_model, max.k=11, p=0, q=0,P=0,Q=0)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(sarima_LB_results$deg_freedom, sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+```
+```{r}
+# Fit a SARIMA model using base R
+sarima_model <- arima(em_ts, order=c(1,1,1), seasonal=list(order=c(0,1,0), period=12))
+residuals_sarima_model <- residuals(sarima_model)
+
+# Perform the Ljung-Box test on the residuals
+sarima_LB_results <- LB_test(residuals_sarima_model, max.k=11, p=1, q=1,P=0,Q=0)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(sarima_LB_results$deg_freedom, sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+```
+
+
+
+```{r}
+sarima_results <- function(ts_data, p_values, d_value, q_values, P_values, D_value, Q_values, period) {
+  # Create an empty data frame to store the results
+  results <- data.frame(ModelParameters = character(), AIC = numeric(), BIC = numeric(), stringsAsFactors = FALSE)
+  
+  for (p in p_values) {
+    for (q in q_values) {
+      for (P in P_values) {
+        for (Q in Q_values) {
+          # Fit the SARIMA model
+          model_fit <- try(arima(em_ts, order=c(p, d_value, q), seasonal=list(order=c(P, D_value, Q), period=period)))
+          
+          # Check if the model was successfully fitted
+          if (!inherits(model_fit, "try-error")) {
+            resid <- residuals(model_fit)
+            lb_test <- Box.test(resid, lag = period, type = "Ljung-Box")
+            
+            # Only consider models where the Ljung-Box test passes
+            if (lb_test$p.value > 0.05) {
+              # Format the model parameters as a string
+              model_params <- paste("p=", p, "d=", d_value, "q=", q, "P=", P, "D=", D_value, "Q=", Q, sep="")
+              # Append the results to the data frame
+              results <- rbind(results, data.frame(ModelParameters = model_params, AIC = model_fit$aic, BIC = BIC(model_fit)))
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  # Order the results by BIC in ascending order
+  results <- results[order(results$BIC), ]
+  return(results)
+}
+
+# Define the SARIMA model parameters to iterate over
+p_values <- c(0, 1, 2)
+d_value <- 1  # Typically known from prior analysis
+q_values <- c(0, 1, 2)
+P_values <- c(0, 1, 2)
+D_value <- 1  # Typically known from prior analysis
+Q_values <- c(0, 1, 2)
+period <- 12  # Monthly data, hence period is 12
+
+
+# Assume em_ts is already defined and loaded with your time series data.
+
+# Use the function to find the best SARIMA model parameters
+best_sarima_results <- sarima_results(em_ts, p_values, d_value, q_values, P_values, D_value, Q_values, period)
+
+# Print the results
+print(best_sarima_results)
+```
+
+```{r}
+# Fit a SARIMA model using base R
+best_sarima_model <- arima(em_ts, order=c(1,1,2), seasonal=list(order=c(0,1,1), period=12))
+residuals_best_sarima_model <- residuals(best_sarima_model)
+best_sarima_model
+
+# Perform the Ljung-Box test on the residuals
+best_sarima_LB_results <- LB_test(residuals_best_sarima_model, max.k=11, p=1, q=2,P=0,Q=1)
+ts.plot(residuals_sarima_model, xlab='Time', ylab='Residuals', main='Residuals of SARIMA Model')
+
+# ACF plot of residuals
+acf(residuals_best_sarima_model, main='ACF of SARIMA Model Residuals')
+
+# PACF plot of residuals
+pacf(residuals_best_sarima_model, main='PACF of SARIMA Model Residuals')
+
+# Plot of Ljung-Box test P-values
+plot(best_sarima_LB_results$deg_freedom, best_sarima_LB_results$LB_p_value, xlab="Degrees of freedom", ylab="P-value", main="Ljung-Box Test P-values", ylim=c(0,1))
+abline(h=0.05, col="blue", lty=2)
+```
+
+```{r}
+# Forecast the next 6 months
+forecast_results <- forecast(best_sarima_model, h=6)
+
+# Print the forecast results
+print(forecast_results)
+
+# Plot the forecast with confidence intervals
+plot(forecast_results, main="Forecast of Monthly Average House Prices", xlab="Month", ylab="Average Price GBP")
+lines(forecast_results$fitted, col='blue')  # Add fitted values to plot for context
+
+```
+
+```{r}
+# Additional details can be accessed via forecast object
+print(paste("Point Forecasts: ", forecast_results$mean))
+print(paste("Lower 90% Confidence Interval: ", forecast_results$lower[,1]))
+print(paste("Upper 90% Confidence Interval: ", forecast_results$upper[,1]))
+```
+
